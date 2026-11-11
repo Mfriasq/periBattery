@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PeriBattery.Core", "src\Per
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PeriBattery.HidDiag", "src\PeriBattery.HidDiag\PeriBattery.HidDiag.csproj", "{8F36995E-2953-44D4-B58A-401C7D46B12D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7ACBC53F-2F03-42F3-92E5-E277E65B293B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PeriBattery.Tests", "tests\PeriBattery.Tests\PeriBattery.Tests.csproj", "{2A23AB82-A61F-44A4-ACFE-6DCB85E7D6AB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +30,14 @@ Global
 		{8F36995E-2953-44D4-B58A-401C7D46B12D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F36995E-2953-44D4-B58A-401C7D46B12D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F36995E-2953-44D4-B58A-401C7D46B12D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A23AB82-A61F-44A4-ACFE-6DCB85E7D6AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A23AB82-A61F-44A4-ACFE-6DCB85E7D6AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A23AB82-A61F-44A4-ACFE-6DCB85E7D6AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A23AB82-A61F-44A4-ACFE-6DCB85E7D6AB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{CC9DBCCC-E5EC-46A5-B2B5-EE336BA98CBA} = {2F3E52F4-CFCE-484A-8CBF-30AF99DD294B}
 		{8F36995E-2953-44D4-B58A-401C7D46B12D} = {2F3E52F4-CFCE-484A-8CBF-30AF99DD294B}
+		{2A23AB82-A61F-44A4-ACFE-6DCB85E7D6AB} = {7ACBC53F-2F03-42F3-92E5-E277E65B293B}
 	EndGlobalSection
 EndGlobal
