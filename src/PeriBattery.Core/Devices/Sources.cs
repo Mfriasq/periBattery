@@ -102,7 +102,9 @@ internal sealed class HidPpReceiverSource : IDeviceSource
                     : await device.PingAsync(timeoutMs: 400, retries: 0, ct).ConfigureAwait(false);
                 if (!ping.Ok)
                 {
-                    if (ping.Status == HidPpStatus.Timeout) discoveryIncomplete = true;
+                    // Only the slot that normally holds the device justifies a quick retry; a silent
+                    // empty slot on a receiver whose device is already known is not worth re-polling for.
+                    if (ping.Status == HidPpStatus.Timeout && index == 1) discoveryIncomplete = true;
                     continue;
                 }
 
