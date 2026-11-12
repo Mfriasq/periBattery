@@ -191,6 +191,7 @@
 
                 <!-- Design -->
                 <TabItem Header="Diseño">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
                     <StackPanel>
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
@@ -234,16 +235,32 @@
                                 <TextBlock Text="Mostrar el porcentaje en la píldora" Style="{StaticResource RowLabel}" />
                             </DockPanel>
                         </Border>
-                        <Border Style="{StaticResource Card}">
-                            <DockPanel>
-                                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding ShowOnAllMonitors}" VerticalAlignment="Center" />
-                                <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Text="Mostrar en todos los monitores" Style="{StaticResource RowLabel}" />
-                                    <TextBlock Text="Una píldora en la barra de tareas de cada pantalla." Style="{StaticResource RowHint}" />
-                                </StackPanel>
-                            </DockPanel>
+                        <Border Style="{StaticResource Card}" Visibility="{Binding HasSecondaryMonitors, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="Otros monitores" Style="{StaticResource RowLabel}" />
+                                <TextBlock Text="Elige en qué pantallas aparece la píldora y a qué lado de su barra de tareas." Style="{StaticResource RowHint}" />
+                                <ItemsControl ItemsSource="{Binding SecondaryMonitors}" Margin="0,8,0,0" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,4">
+                                                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding Show}" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                          ToolTip="Mostrar la píldora en esta pantalla" />
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource OutlineButton}" Command="{Binding ToggleSideCommand}" Content="{Binding SideText}"
+                                                        MinWidth="78" Padding="8,4" ToolTip="Lado de la barra de tareas (clic para cambiar)" />
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource RowLabel}" FontSize="12.5" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <DockPanel Margin="0,10,0,0">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding SecondaryPillScale, StringFormat={}{0:P0}}" Foreground="{StaticResource SubTextBrush}" FontSize="12" />
+                                    <TextBlock Text="Tamaño en otros monitores" Style="{StaticResource RowLabel}" FontSize="12.5" />
+                                </DockPanel>
+                                <Slider Minimum="0.5" Maximum="1.6" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding SecondaryPillScale}" Margin="0,8,0,0" />
+                            </StackPanel>
                         </Border>
                     </StackPanel>
+                    </ScrollViewer>
                 </TabItem>
             </TabControl>
         </DockPanel>

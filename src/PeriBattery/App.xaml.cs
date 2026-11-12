@@ -204,28 +204,39 @@ public partial class App : Application
     {
         if (_vm == null || _log == null) return;
 
-        var wanted = new List<(IntPtr Taskbar, bool Primary)>();
+        var wanted = new List<(IntPtr Taskbar, bool Primary, bool AlignLeft)>();
         IntPtr primary = Native.FindWindowW("Shell_TrayWnd", null);
-        if (primary != IntPtr.Zero) wanted.Add((primary, true));
-        if (_settings.ShowOnAllMonitors)
+        if (primary != IntPtr.Zero) wanted.Add((primary, true, false));
+
+        // Each secondary monitor has its own taskbar window and its own settings (keyed by display name).
+        var monitors = new List<(string Key, string Label)>();
+        IntPtr secondary = IntPtr.Zero;
+        while ((secondary = Native.FindWindowExW(IntPtr.Zero, secondary, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
         {
-            IntPtr secondary = IntPtr.Zero;
-            while ((secondary = Native.FindWindowExW(IntPtr.Zero, secondary, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
-                wanted.Add((secondary, false));
+            var info = new Native.MONITORINFOEX { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.MONITORINFOEX>() };
+            if (!Native.GetMonitorInfoEx(Native.MonitorFromWindow(secondary, Native.MONITOR_DEFAULTTONEAREST), ref info)) continue;
+            string key = info.szDevice;
+            bool portrait = info.rcMonitor.Height > info.rcMonitor.Width;
+            if (!_settings.Monitors.TryGetValue(key, out MonitorSettings? ms)) _settings.Monitors[key] = ms = new MonitorSettings();
+            ms.AlignLeft ??= portrait; // narrow portrait screens: keep clear of the centred icons and the clock
+            monitors.Add((key, $"Pantalla {info.rcMonitor.Width}×{info.rcMonitor.Height}{(portrait ? " (vertical)" : "")}"));
+            if (ms.Show) wanted.Add((secondary, false, ms.AlignLeft == true));
         }
+        monitors.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
+        _vm.SetSecondaryMonitors(monitors);
 
         for (int i = _pills.Count - 1; i >= 0; i--)
         {
             PillWindow pill = _pills[i];
-            if (Native.IsWindow(pill.Taskbar) && wanted.Any(w => w.Taskbar == pill.Taskbar)) continue;
+            if (Native.IsWindow(pill.Taskbar) && wanted.Any(w => w.Taskbar == pill.Taskbar && w.AlignLeft == pill.AlignLeft)) continue;
             pill.Close();
             _pills.RemoveAt(i);
         }
 
-        foreach ((IntPtr taskbar, bool isPrimary) in wanted)
+        foreach ((IntPtr taskbar, bool isPrimary, bool alignLeft) in wanted)
         {
             if (_pills.Any(p => p.Taskbar == taskbar)) continue;
-            var pill = new PillWindow(_vm, _log, taskbar, isPrimary);
+            var pill = new PillWindow(_vm, _log, taskbar, isPrimary, alignLeft);
             pill.Clicked += ToggleFlyout;
             pill.MenuRequested += () => _tray?.ShowMenu();
             pill.DisplayChanged += QueuePillSync;

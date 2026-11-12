@@ -138,6 +138,38 @@ public sealed class DeviceVm : Observable
     }
 }
 
+/// <summary>One secondary monitor's row in the Design tab.</summary>
+public sealed class MonitorVm : Observable
+{
+    private readonly MonitorSettings _settings;
+    private readonly Action _changed;
+
+    public MonitorVm(string key, string label, MonitorSettings settings, Action changed)
+    {
+        Key = key;
+        Label = label;
+        _settings = settings;
+        _changed = changed;
+        ToggleSideCommand = new RelayCommand(() =>
+        {
+            _settings.AlignLeft = !(_settings.AlignLeft ?? false);
+            Raise(nameof(SideText));
+            _changed();
+        });
+    }
+
+    public string Key { get; }
+    public string Label { get; }
+    public ICommand ToggleSideCommand { get; }
+    public string SideText => _settings.AlignLeft == true ? "Izquierda" : "Derecha";
+
+    public bool Show
+    {
+        get => _settings.Show;
+        set { _settings.Show = value; Raise(); _changed(); }
+    }
+}
+
 public sealed class MainVm : Observable
 {
     private readonly AppSettings _settings;
@@ -218,10 +250,29 @@ public sealed class MainVm : Observable
     /// <summary>Raised when the set of taskbars that should carry a pill changed.</summary>
     public event Action? MonitorsSettingChanged;
 
-    public bool ShowOnAllMonitors
+    public ObservableCollection<MonitorVm> SecondaryMonitors { get; } = [];
+    public bool HasSecondaryMonitors => SecondaryMonitors.Count > 0;
+
+    public double SecondaryPillScale
     {
-        get => _settings.ShowOnAllMonitors;
-        set { _settings.ShowOnAllMonitors = value; Changed(); MonitorsSettingChanged?.Invoke(); }
+        get => _settings.SecondaryPillScale;
+        set { _settings.SecondaryPillScale = Math.Round(value, 2); Changed(); PillLayoutChanged?.Invoke(); }
+    }
+
+    /// <summary>Updates the list of secondary monitors shown in the Design tab (called when taskbars are re-synced).</summary>
+    public void SetSecondaryMonitors(IReadOnlyList<(string Key, string Label)> monitors)
+    {
+        if (SecondaryMonitors.Select(m => (m.Key, m.Label)).SequenceEqual(monitors)) return;
+        SecondaryMonitors.Clear();
+        foreach ((string key, string label) in monitors)
+        {
+            SecondaryMonitors.Add(new MonitorVm(key, label, _settings.Monitors[key], () =>
+            {
+                _saveSettings();
+                MonitorsSettingChanged?.Invoke();
+            }));
+        }
+        Raise(nameof(HasSecondaryMonitors));
     }
 
     public string AccentColor

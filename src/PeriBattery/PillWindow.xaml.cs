@@ -34,14 +34,23 @@ public partial class PillWindow : Window
     private bool _visible;
     private bool _closed;
 
-    public PillWindow(MainVm vm, ILog log, IntPtr taskbar, bool primary)
+    public PillWindow(MainVm vm, ILog log, IntPtr taskbar, bool primary, bool alignLeft)
     {
         InitializeComponent();
         _vm = vm;
         _log = log;
         _taskbar = taskbar;
         _primary = primary;
+        AlignLeft = alignLeft;
         DataContext = vm;
+
+        if (!primary)
+        {
+            // Secondary taskbars use their own size setting.
+            var binding = new System.Windows.Data.Binding(nameof(MainVm.SecondaryPillScale));
+            System.Windows.Data.BindingOperations.SetBinding(Scale, System.Windows.Media.ScaleTransform.ScaleXProperty, binding);
+            System.Windows.Data.BindingOperations.SetBinding(Scale, System.Windows.Media.ScaleTransform.ScaleYProperty, binding);
+        }
 
         _foregroundProc = OnForegroundEvent;
         _taskbarProc = OnTaskbarEvent;
@@ -65,6 +74,9 @@ public partial class PillWindow : Window
 
     /// <summary>Taskbar window this pill is attached to.</summary>
     public IntPtr Taskbar => _taskbar;
+
+    /// <summary>Anchored to the far left of the taskbar instead of next to the tray/clock.</summary>
+    public bool AlignLeft { get; }
 
     public event Action<PillWindow>? Clicked;
     public event Action? MenuRequested;
@@ -190,7 +202,9 @@ public partial class PillWindow : Window
             anchorRight = bar.Right - (int)(SecondaryRightReserve * scale);
         }
 
-        int x = Math.Max(bar.Left, anchorRight - me.Width - (int)(6 * scale));
+        int x = AlignLeft
+            ? bar.Left + (int)(6 * scale)
+            : Math.Max(bar.Left, anchorRight - me.Width - (int)(6 * scale));
         int y = bar.Top + (bar.Height - me.Height) / 2;
         SetWindowPos(_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
     }

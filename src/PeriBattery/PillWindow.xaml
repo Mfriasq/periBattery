@@ -10,7 +10,7 @@
             Opacity="{Binding PillOpacity}" MouseLeftButtonUp="OnLeftClick" MouseRightButtonUp="OnRightClick"
             ToolTipService.InitialShowDelay="600" ToolTip="{Binding TooltipText}">
         <Border.LayoutTransform>
-            <ScaleTransform ScaleX="{Binding PillScale}" ScaleY="{Binding PillScale}" />
+            <ScaleTransform x:Name="Scale" ScaleX="{Binding PillScale}" ScaleY="{Binding PillScale}" />
         </Border.LayoutTransform>
         <ItemsControl ItemsSource="{Binding PillDevices}" VerticalAlignment="Center" Focusable="False">
             <ItemsControl.ItemsPanel>

@@ -7,6 +7,14 @@ using PeriBattery.Core.Infra;
 
 namespace PeriBattery;
 
+public sealed class MonitorSettings
+{
+    public bool Show { get; set; } = true;
+
+    /// <summary>True: far left of that taskbar. False: next to the clock. Null: not chosen yet (left on portrait monitors).</summary>
+    public bool? AlignLeft { get; set; }
+}
+
 public sealed class DeviceSettings
 {
     public bool ShowInPill { get; set; } = true;
@@ -31,8 +39,11 @@ public sealed class AppSettings
     public string AccentColor { get; set; } = "#FF6B6B";
     public bool ShowPercentText { get; set; } = true;
 
-    /// <summary>Show a pill on every monitor's taskbar, not only the primary one.</summary>
-    public bool ShowOnAllMonitors { get; set; } = true;
+    /// <summary>Pill scale on secondary monitors' taskbars (they are often smaller or rotated).</summary>
+    public double SecondaryPillScale { get; set; } = 0.75;
+
+    /// <summary>Per secondary monitor (keyed by display device name, e.g. \\.\DISPLAY1): show a pill there and on which side.</summary>
+    public Dictionary<string, MonitorSettings> Monitors { get; set; } = [];
     public bool LowBatteryNotifications { get; set; } = true;
     public bool HideInFullscreen { get; set; } = true;
     public bool DebugLog { get; set; }
@@ -105,6 +116,8 @@ public sealed class SettingsStore(ILog log)
         s.PillOpacity = Math.Clamp(s.PillOpacity, 0.3, 1.0);
         s.PollSeconds = Math.Clamp(s.PollSeconds, 15, 3600);
         s.HidppSoftwareId = Math.Clamp(s.HidppSoftwareId, 1, 15);
+        s.SecondaryPillScale = Math.Clamp(s.SecondaryPillScale, 0.5, 1.6);
+        s.Monitors ??= [];
         s.Devices ??= [];
         s.Known ??= [];
         return s;
