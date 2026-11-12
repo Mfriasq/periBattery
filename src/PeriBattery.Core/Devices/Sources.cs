@@ -44,6 +44,7 @@ internal sealed class HidPpReceiverSource : IDeviceSource
     private readonly string _tag;
     private readonly object _lock = new();
     private readonly Dictionary<byte, Entry> _entries = [];
+    private int _quickRetries;
 
     private HidPpReceiverSource(string key, HidPpTransport transport, ISourceHost host, string tag)
     {
@@ -83,6 +84,7 @@ internal sealed class HidPpReceiverSource : IDeviceSource
     {
         bool anyKnown;
         lock (_lock) anyKnown = _entries.Count > 0;
+        bool discoveryIncomplete = false;
 
         for (byte index = 1; index <= MaxDeviceIndex && !ct.IsCancellationRequested && !_transport.IsClosed; index++)
         {
@@ -93,12 +95,24 @@ internal sealed class HidPpReceiverSource : IDeviceSource
             {
                 if (!rediscover && anyKnown) continue;
                 var device = new HidPpDevice(_transport, index);
-                HidPpReply ping = await device.PingAsync(timeoutMs: 400, retries: 0, ct).ConfigureAwait(false);
-                if (!ping.Ok) continue;
+                // Index 1 is where a LIGHTSPEED receiver keeps its device. An idle keyboard can take over a
+                // second to answer the first request, so that index gets a longer timeout and retries.
+                HidPpReply ping = index == 1
+                    ? await device.PingAsync(timeoutMs: 700, retries: 2, ct).ConfigureAwait(false)
+                    : await device.PingAsync(timeoutMs: 400, retries: 0, ct).ConfigureAwait(false);
+                if (!ping.Ok)
+                {
+                    if (ping.Status == HidPpStatus.Timeout) discoveryIncomplete = true;
+                    continue;
+                }
 
                 await device.ReadNameAsync(ct).ConfigureAwait(false);
                 HidPpReply resolve = await device.ResolveBatteryFeatureAsync(ct).ConfigureAwait(false);
-                if (device.Name == null || !resolve.Ok) continue; // incomplete discovery: retry on the next cycle
+                if (device.Name == null || !resolve.Ok)
+                {
+                    discoveryIncomplete = true; // retried shortly
+                    continue;
+                }
                 if (device.BatteryFeatureIndex == 0)
                 {
                     _host.Log.Info($"{_tag}: \"{device.Name}\" (index {index}) exposes no battery feature (0x1000/0x1001/0x1004)");
@@ -113,6 +127,19 @@ internal sealed class HidPpReceiverSource : IDeviceSource
 
             if (entry.Device.BatteryFeatureIndex == 0) continue;
             await PollDeviceAsync(entry, ct).ConfigureAwait(false);
+        }
+
+        // A request that got no answer at all during discovery (lost to other traffic on the shared
+        // receiver) should not leave the device missing for a whole poll interval: retry soon, a few times.
+        if (discoveryIncomplete && _quickRetries < 3)
+        {
+            _quickRetries++;
+            _host.Log.Info($"{_tag}: discovery incomplete (no answer), retrying in 5 s ({_quickRetries}/3)");
+            _host.RequestRefresh(5000);
+        }
+        else if (!discoveryIncomplete)
+        {
+            _quickRetries = 0;
         }
     }
 

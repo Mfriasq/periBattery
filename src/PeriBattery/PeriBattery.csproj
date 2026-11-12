@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- The Windows 10 TFM gives access to the WinRT toast notification API. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>PeriBattery</RootNamespace>
+    <AssemblyName>PeriBattery</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Product>PeriBattery</Product>
+    <Description>Battery levels of wireless peripherals on the taskbar</Description>
+    <!-- Keep the idle footprint small. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PeriBattery.Core\PeriBattery.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+    <EmbeddedResource Include="Assets\app.png" LogicalName="PeriBattery.app.png" />
+  </ItemGroup>
+</Project>

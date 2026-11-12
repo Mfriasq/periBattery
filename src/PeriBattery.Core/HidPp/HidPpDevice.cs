@@ -24,14 +24,20 @@ public sealed class HidPpDevice(HidPpTransport transport, byte index)
     /// <summary>IRoot ping (feature index 0, function 1) with a random mark byte echoed back by the device.</summary>
     public async Task<HidPpReply> PingAsync(int timeoutMs = 500, int retries = 1, CancellationToken ct = default)
     {
-        byte mark = (byte)Random.Shared.Next(1, 256);
-        HidPpReply reply = await transport.RequestAsync(index, 0x00, 1, [0, 0, mark], timeoutMs, retries, retryOnTimeout: retries > 0, ct).ConfigureAwait(false);
-        if (reply.Ok)
+        HidPpReply reply = default;
+        // A reply with the wrong mark belongs to another client that happens to share our software ID: ask again.
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            if (reply.Params[2] != mark) return new HidPpReply(HidPpStatus.Timeout, []);
-            Protocol = new Version(reply.Params[0], reply.Params[1]);
+            byte mark = (byte)Random.Shared.Next(1, 256);
+            reply = await transport.RequestAsync(index, 0x00, 1, [0, 0, mark], timeoutMs, retries, retryOnTimeout: retries > 0, ct).ConfigureAwait(false);
+            if (!reply.Ok) return reply;
+            if (reply.Params[2] == mark)
+            {
+                Protocol = new Version(reply.Params[0], reply.Params[1]);
+                return reply;
+            }
         }
-        return reply;
+        return new HidPpReply(HidPpStatus.Timeout, []);
     }
 
     /// <summary>IRoot.getFeature: returns the feature index, or 0 when the device does not implement the feature.</summary>

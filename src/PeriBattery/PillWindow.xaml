@@ -1,0 +1,44 @@
+<Window x:Class="PeriBattery.PillWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PeriBattery" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" Topmost="True" ShowActivated="False" Focusable="False"
+        SizeToContent="WidthAndHeight" ResizeMode="NoResize" UseLayoutRounding="True"
+        Left="-10000" Top="-10000" TextOptions.TextFormattingMode="Display">
+    <Border x:Name="Root" Background="{StaticResource PillBackgroundBrush}" BorderBrush="{DynamicResource AccentBorderBrush}"
+            BorderThickness="1" CornerRadius="9" Height="32" Padding="5,0" Cursor="Hand"
+            Opacity="{Binding PillOpacity}" MouseLeftButtonUp="OnLeftClick" MouseRightButtonUp="OnRightClick"
+            ToolTipService.InitialShowDelay="600" ToolTip="{Binding TooltipText}">
+        <Border.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding PillScale}" ScaleY="{Binding PillScale}" />
+        </Border.LayoutTransform>
+        <ItemsControl ItemsSource="{Binding PillDevices}" VerticalAlignment="Center" Focusable="False">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Rectangle x:Name="Divider" Width="1" Height="16" Fill="{StaticResource DividerBrush}" Margin="3,0" />
+                        <StackPanel Orientation="Horizontal" Margin="6,0" Opacity="{Binding ContentOpacity}">
+                            <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                <Path Data="{Binding IconGeometry}" Style="{StaticResource DeviceIcon}" />
+                            </Viewbox>
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource BatteryGlyph}" Margin="7,0,0,0" Focusable="False" />
+                            <TextBlock Text="{Binding PercentText}" Foreground="{StaticResource TextBrush}" FontSize="12.5"
+                                       FontWeight="SemiBold" Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Visibility="{Binding DataContext.ShowPercentText, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource PreviousData}}" Value="{x:Null}">
+                            <Setter TargetName="Divider" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Border>
+</Window>
