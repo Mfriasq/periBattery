@@ -28,7 +28,11 @@ internal interface IDeviceSource : IDisposable
 /// <summary>One LIGHTSPEED/Unifying-style receiver and the HID++ 2.0 devices paired to it.</summary>
 internal sealed class HidPpReceiverSource : IDeviceSource
 {
-    private const int MaxDeviceIndex = 6;
+    // 0xFF first: a device plugged in directly with its USB cable (e.g. a G703 in wired mode, PID C090)
+    // answers there, and in fact answers on every index, so nothing else is scanned once it is found.
+    // A real receiver rejects 0xFF and its paired devices live in slots 1..6.
+    private static readonly byte[] DeviceIndexes = [0xFF, 1, 2, 3, 4, 5, 6];
+    private const byte WiredIndex = 0xFF;
     private const int UnreliableAfterFailures = 3;
 
     private sealed class Entry(HidPpDevice device)
@@ -45,6 +49,7 @@ internal sealed class HidPpReceiverSource : IDeviceSource
     private readonly object _lock = new();
     private readonly Dictionary<byte, Entry> _entries = [];
     private int _quickRetries;
+    private bool _direct;
 
     private HidPpReceiverSource(string key, HidPpTransport transport, ISourceHost host, string tag)
     {
@@ -86,8 +91,10 @@ internal sealed class HidPpReceiverSource : IDeviceSource
         lock (_lock) anyKnown = _entries.Count > 0;
         bool discoveryIncomplete = false;
 
-        for (byte index = 1; index <= MaxDeviceIndex && !ct.IsCancellationRequested && !_transport.IsClosed; index++)
+        foreach (byte index in DeviceIndexes)
         {
+            if (ct.IsCancellationRequested || _transport.IsClosed) break;
+            if (_direct && index != WiredIndex) continue;
             Entry? entry;
             lock (_lock) _entries.TryGetValue(index, out entry);
 
@@ -125,6 +132,7 @@ internal sealed class HidPpReceiverSource : IDeviceSource
                 }
                 entry = new Entry(device);
                 lock (_lock) _entries[index] = entry;
+                if (index == WiredIndex && device.BatteryFeatureIndex != 0) _direct = true;
             }
 
             if (entry.Device.BatteryFeatureIndex == 0) continue;
@@ -153,6 +161,7 @@ internal sealed class HidPpReceiverSource : IDeviceSource
         lock (_lock)
         {
             DeviceSnapshot previous = entry.Snapshot ?? NewSnapshot(device);
+            if (device.Index == WiredIndex) previous = previous with { Link = "USB" };
             if (reading != null)
             {
                 entry.ConsecutiveTimeouts = 0;

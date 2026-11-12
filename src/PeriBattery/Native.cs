@@ -90,6 +90,15 @@ internal static class Native
 
     public const long WS_EX_TRANSPARENT = 0x00000020;
 
+    public const uint SWP_NOZORDER = 0x0004;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromPoint(POINT point, uint flags);
+
     [DllImport("psapi.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool EmptyWorkingSet(IntPtr process);

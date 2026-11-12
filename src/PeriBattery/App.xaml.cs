@@ -23,7 +23,8 @@ public partial class App : Application
     private AppSettings _settings = new();
     private DeviceManager? _manager;
     private MainVm? _vm;
-    private PillWindow? _pill;
+    private readonly List<PillWindow> _pills = [];
+    private DispatcherTimer? _pillSyncTimer;
     private FlyoutWindow? _flyout;
     private TrayIcon? _tray;
     private Toasts? _toasts;
@@ -112,23 +113,28 @@ public partial class App : Application
         _vm.Apply(_manager.Current);
         _manager.Changed += list => Dispatcher.BeginInvoke(() => OnDevicesChanged(list));
 
-        _pill = new PillWindow(_vm, _log);
-        _pill.Clicked += ToggleFlyout;
-        _pill.MenuRequested += () => _tray?.ShowMenu();
-        new WindowInteropHelper(_pill).EnsureHandle();
+        // Monitor hot-plug and Explorer restarts arrive as bursts of messages: re-sync the pills once they settle.
+        _pillSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        _pillSyncTimer.Tick += (_, _) =>
+        {
+            _pillSyncTimer.Stop();
+            SyncPills();
+        };
+        _vm.MonitorsSettingChanged += SyncPills;
+        SyncPills();
 
         _tray = new TrayIcon();
-        _tray.Clicked += ToggleFlyout;
+        _tray.Clicked += () => ToggleFlyout(null);
         _tray.RefreshRequested += () => _manager.RequestRefresh();
         _tray.ExitRequested += Quit;
-        _tray.TaskbarRecreated += () => _pill.HookTaskbar();
+        _tray.TaskbarRecreated += QueuePillSync;
         // Plug/unplug anywhere in the system: re-scan shortly after the burst of notifications settles.
         _tray.DevicesChanged += () => _manager.RequestRefresh(1500);
 
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
-        _showWait = ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) => Dispatcher.BeginInvoke(ShowFlyout), null, Timeout.Infinite, false);
+        _showWait = ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) => Dispatcher.BeginInvoke(() => ShowFlyout(null)), null, Timeout.Infinite, false);
 
         _manager.Start();
         TrimMemorySoon(12);
@@ -187,7 +193,50 @@ public partial class App : Application
         _saveTimer?.Start();
     }
 
-    private void ToggleFlyout()
+    private void QueuePillSync()
+    {
+        _pillSyncTimer?.Stop();
+        _pillSyncTimer?.Start();
+    }
+
+    /// <summary>Keeps exactly one pill per taskbar: the primary one, plus each secondary monitor's when enabled.</summary>
+    private void SyncPills()
+    {
+        if (_vm == null || _log == null) return;
+
+        var wanted = new List<(IntPtr Taskbar, bool Primary)>();
+        IntPtr primary = Native.FindWindowW("Shell_TrayWnd", null);
+        if (primary != IntPtr.Zero) wanted.Add((primary, true));
+        if (_settings.ShowOnAllMonitors)
+        {
+            IntPtr secondary = IntPtr.Zero;
+            while ((secondary = Native.FindWindowExW(IntPtr.Zero, secondary, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
+                wanted.Add((secondary, false));
+        }
+
+        for (int i = _pills.Count - 1; i >= 0; i--)
+        {
+            PillWindow pill = _pills[i];
+            if (Native.IsWindow(pill.Taskbar) && wanted.Any(w => w.Taskbar == pill.Taskbar)) continue;
+            pill.Close();
+            _pills.RemoveAt(i);
+        }
+
+        foreach ((IntPtr taskbar, bool isPrimary) in wanted)
+        {
+            if (_pills.Any(p => p.Taskbar == taskbar)) continue;
+            var pill = new PillWindow(_vm, _log, taskbar, isPrimary);
+            pill.Clicked += ToggleFlyout;
+            pill.MenuRequested += () => _tray?.ShowMenu();
+            pill.DisplayChanged += QueuePillSync;
+            new WindowInteropHelper(pill).EnsureHandle();
+            if (isPrimary) _pills.Insert(0, pill);
+            else _pills.Add(pill);
+        }
+        _log.Debug($"pills: {_pills.Count} taskbar(s)");
+    }
+
+    private void ToggleFlyout(PillWindow? source)
     {
         if (_flyout != null)
         {
@@ -196,12 +245,14 @@ public partial class App : Application
         }
         // Clicking the tray icon deactivates (and closes) the flyout first; do not reopen it immediately.
         if ((DateTime.UtcNow - _flyoutClosedUtc).TotalMilliseconds < 350) return;
-        ShowFlyout();
+        ShowFlyout(source);
     }
 
-    private void ShowFlyout()
+    private void ShowFlyout(PillWindow? source)
     {
-        if (_vm == null || _pill == null) return;
+        if (_vm == null) return;
+        // Open next to the pill that was clicked; tray icon and second-instance launches use the primary one.
+        Rect anchor = (source ?? _pills.FirstOrDefault())?.PillBounds ?? Rect.Empty;
         if (_flyout != null)
         {
             _flyout.Activate();
@@ -216,7 +267,7 @@ public partial class App : Application
             _flyoutClosedUtc = DateTime.UtcNow;
             TrimMemorySoon(5);
         };
-        _flyout.SourceInitialized += (_, _) => _flyout?.PlaceNear(_pill.PillBounds);
+        _flyout.SourceInitialized += (_, _) => _flyout?.PlaceNear(anchor);
         _flyout.Show();
         _flyout.Activate();
     }

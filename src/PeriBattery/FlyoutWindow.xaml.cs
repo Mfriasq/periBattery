@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Interop;
 
 namespace PeriBattery;
 
@@ -22,18 +22,32 @@ public partial class FlyoutWindow : Window
     /// <param name="anchor">Pill rectangle in physical pixels, or <see cref="Rect.Empty"/>.</param>
     public void PlaceNear(Rect anchor)
     {
-        Rect work = SystemParameters.WorkArea; // primary monitor, device-independent units
-        double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        if (scale <= 0) scale = 1;
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
 
-        double left = work.Right - Width - 4;
-        if (!anchor.IsEmpty)
+        // Work in physical pixels: monitors can have different scale factors.
+        IntPtr monitor = anchor.IsEmpty
+            ? Native.MonitorFromWindow(Native.FindWindowW("Shell_TrayWnd", null), Native.MONITOR_DEFAULTTONEAREST)
+            : Native.MonitorFromPoint(new Native.POINT { X = (int)(anchor.Left + anchor.Width / 2), Y = (int)(anchor.Top + anchor.Height / 2) }, Native.MONITOR_DEFAULTTONEAREST);
+        var info = new Native.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.MONITORINFO>() };
+        if (!Native.GetMonitorInfoW(monitor, ref info)) return;
+        Native.RECT work = info.rcWork;
+
+        // Step 1: move onto the target monitor so the window takes that monitor's DPI (and pixel size).
+        Native.SetWindowPos(hwnd, IntPtr.Zero, work.Left + 8, work.Top + 8, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_NOZORDER);
+
+        // Step 2: once resized for that DPI, dock it above the taskbar, centred on the pill.
+        void Dock()
         {
-            double centre = (anchor.Left + anchor.Width / 2) / scale;
-            left = centre - Width / 2;
+            if (!Native.GetWindowRect(hwnd, out Native.RECT me)) return;
+            int x = work.Right - me.Width - 4;
+            if (!anchor.IsEmpty) x = (int)(anchor.Left + anchor.Width / 2) - me.Width / 2;
+            x = Math.Max(work.Left + 4, Math.Min(x, work.Right - me.Width - 4));
+            int y = Math.Max(work.Top + 4, work.Bottom - me.Height - 2);
+            Native.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_NOZORDER);
         }
-        Left = Math.Max(work.Left + 4, Math.Min(left, work.Right - Width - 4));
-        Top = Math.Max(work.Top + 4, work.Bottom - Height - 2);
+        Dock();
+        Dispatcher.BeginInvoke(Dock, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnDeactivated(object? sender, EventArgs e) => CloseOnce();

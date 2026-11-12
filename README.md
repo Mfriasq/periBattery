@@ -29,6 +29,8 @@ Los ajustes se guardan en `%AppData%\PeriBattery\settings.json` y el registro en
 - La batería se actualiza cada 60 segundos y al conectar o desconectar un dispositivo.
 - Con batería al 10 % o menos recibes una notificación, una sola vez por ciclo de descarga.
 - La píldora se oculta mientras haya una aplicación a pantalla completa (exclusiva o sin bordes) en el monitor de la barra de tareas.
+- Con varios monitores aparece una píldora en la barra de tareas de cada pantalla, y cada una se oculta según lo que haya en su monitor. Se desactiva en **Diseño → Mostrar en todos los monitores**.
+- Un ratón o teclado conectado por cable para cargar se lee por USB. Mientras carga, los dispositivos que informan por voltaje (como el G703) muestran un porcentaje más alto que el real, porque el voltaje sube al cargar.
 
 ## Compilar
 

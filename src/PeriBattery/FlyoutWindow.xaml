@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PeriBattery" Width="456" Height="610" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize" UseLayoutRounding="True"
+        WindowStartupLocation="Manual" Left="-10000" Top="-10000"
         FontFamily="Segoe UI Variable Text, Segoe UI" Foreground="{StaticResource TextBrush}"
         TextOptions.TextFormattingMode="Display" Deactivated="OnDeactivated" PreviewKeyDown="OnKeyDown">
     <Window.Resources>
@@ -231,6 +232,15 @@
                             <DockPanel>
                                 <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding ShowPercentText}" VerticalAlignment="Center" />
                                 <TextBlock Text="Mostrar el porcentaje en la píldora" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding ShowOnAllMonitors}" VerticalAlignment="Center" />
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Mostrar en todos los monitores" Style="{StaticResource RowLabel}" />
+                                    <TextBlock Text="Una píldora en la barra de tareas de cada pantalla." Style="{StaticResource RowHint}" />
+                                </StackPanel>
                             </DockPanel>
                         </Border>
                     </StackPanel>

@@ -215,6 +215,15 @@ public sealed class MainVm : Observable
         set { _settings.ShowPercentText = value; Changed(); PillLayoutChanged?.Invoke(); }
     }
 
+    /// <summary>Raised when the set of taskbars that should carry a pill changed.</summary>
+    public event Action? MonitorsSettingChanged;
+
+    public bool ShowOnAllMonitors
+    {
+        get => _settings.ShowOnAllMonitors;
+        set { _settings.ShowOnAllMonitors = value; Changed(); MonitorsSettingChanged?.Invoke(); }
+    }
+
     public string AccentColor
     {
         get => _settings.AccentColor;

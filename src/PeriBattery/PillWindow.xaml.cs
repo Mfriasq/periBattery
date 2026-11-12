@@ -8,30 +8,39 @@ using static PeriBattery.Native;
 namespace PeriBattery;
 
 /// <summary>
-/// The taskbar overlay. A transparent, never-activating tool window kept topmost and anchored to the
-/// left of the notification area. It follows the taskbar through WinEvent hooks and display/DPI
-/// messages, and hides while a fullscreen application is in the foreground.
+/// The taskbar overlay for one taskbar (the primary one or a secondary monitor's). A transparent,
+/// never-activating tool window kept topmost and anchored next to the notification area (primary) or
+/// the clock (secondary). It follows its taskbar through WinEvent hooks and display/DPI messages, and
+/// hides while a fullscreen application covers that monitor.
 /// </summary>
 public partial class PillWindow : Window
 {
+    /// <summary>Space kept free at the right end of a secondary taskbar (clock and notification bell), in DIPs.</summary>
+    private const double SecondaryRightReserve = 150;
+
     private readonly MainVm _vm;
     private readonly ILog _log;
+    private readonly IntPtr _taskbar;
+    private readonly bool _primary;
     private readonly DispatcherTimer _watchdog;
     private readonly DispatcherTimer _repositionDebounce;
     private readonly WinEventProc _foregroundProc;
     private readonly WinEventProc _taskbarProc;
+    private readonly Action _layoutChanged;
     private IntPtr _hwnd;
     private IntPtr _foregroundHook;
     private IntPtr _taskbarHook;
-    private IntPtr _taskbar;
     private bool _fullscreen;
     private bool _visible;
+    private bool _closed;
 
-    public PillWindow(MainVm vm, ILog log)
+    public PillWindow(MainVm vm, ILog log, IntPtr taskbar, bool primary)
     {
         InitializeComponent();
         _vm = vm;
         _log = log;
+        _taskbar = taskbar;
+        _primary = primary;
         DataContext = vm;
 
         _foregroundProc = OnForegroundEvent;
@@ -49,12 +58,19 @@ public partial class PillWindow : Window
             Reposition();
         };
 
-        vm.PillLayoutChanged += () => Dispatcher.BeginInvoke(Evaluate, DispatcherPriority.Loaded);
+        _layoutChanged = () => Dispatcher.BeginInvoke(Evaluate, DispatcherPriority.Loaded);
+        vm.PillLayoutChanged += _layoutChanged;
         SizeChanged += (_, _) => Reposition();
     }
 
-    public event Action? Clicked;
+    /// <summary>Taskbar window this pill is attached to.</summary>
+    public IntPtr Taskbar => _taskbar;
+
+    public event Action<PillWindow>? Clicked;
     public event Action? MenuRequested;
+
+    /// <summary>Monitors were added, removed or rearranged: the set of taskbars may have changed.</summary>
+    public event Action? DisplayChanged;
 
     /// <summary>Screen rectangle of the pill in physical pixels (empty when hidden).</summary>
     public Rect PillBounds
@@ -78,24 +94,14 @@ public partial class PillWindow : Window
         HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
         _foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _foregroundProc, 0, 0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
-        HookTaskbar();
+
+        // Location changes of this taskbar's thread only (not system-wide), so the pill follows it.
+        uint thread = GetWindowThreadProcessId(_taskbar, out uint pid);
+        if (thread != 0)
+            _taskbarHook = SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, IntPtr.Zero, _taskbarProc, pid, thread, WINEVENT_OUTOFCONTEXT);
+
         _watchdog.Start();
         Evaluate();
-    }
-
-    /// <summary>Hooks location changes of the taskbar window only (not system-wide), so the pill follows it.</summary>
-    public void HookTaskbar()
-    {
-        if (_taskbarHook != IntPtr.Zero)
-        {
-            UnhookWinEvent(_taskbarHook);
-            _taskbarHook = IntPtr.Zero;
-        }
-        _taskbar = FindWindowW("Shell_TrayWnd", null);
-        if (_taskbar == IntPtr.Zero) return;
-        uint thread = GetWindowThreadProcessId(_taskbar, out uint pid);
-        _taskbarHook = SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, IntPtr.Zero, _taskbarProc, pid, thread, WINEVENT_OUTOFCONTEXT);
-        QueueReposition();
     }
 
     private void OnForegroundEvent(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
@@ -108,7 +114,7 @@ public partial class PillWindow : Window
     private void OnTaskbarEvent(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
     {
         // idObject 0 = the window itself (ignores caret/cursor objects).
-        if (idObject == 0 && hwnd != IntPtr.Zero) QueueReposition();
+        if (idObject == 0 && hwnd == _taskbar) QueueReposition();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -119,6 +125,9 @@ public partial class PillWindow : Window
                 handled = true;
                 return new IntPtr(MA_NOACTIVATE);
             case WM_DISPLAYCHANGE:
+                QueueReposition();
+                DisplayChanged?.Invoke();
+                break;
             case WM_SETTINGCHANGE:
             case WM_DPICHANGED:
                 QueueReposition();
@@ -136,21 +145,21 @@ public partial class PillWindow : Window
     /// <summary>Recomputes visibility (devices to show, fullscreen app) and keeps the pill above the taskbar.</summary>
     public void Evaluate()
     {
-        if (_hwnd == IntPtr.Zero) return;
+        if (_hwnd == IntPtr.Zero || _closed) return;
 
         bool fullscreen = false;
         if (_vm.HideInFullscreen)
         {
-            IntPtr monitor = _taskbar != IntPtr.Zero ? MonitorFromWindow(_taskbar, MONITOR_DEFAULTTONEAREST) : IntPtr.Zero;
+            IntPtr monitor = MonitorFromWindow(_taskbar, MONITOR_DEFAULTTONEAREST);
             fullscreen = FullscreenDetector.IsFullscreenAppActive(_taskbar, monitor);
         }
         if (fullscreen != _fullscreen)
         {
             _fullscreen = fullscreen;
-            _log.Info($"pill: fullscreen app {(fullscreen ? "detected, hiding" : "gone, showing")} (QUNS={FullscreenDetector.NotificationState()})");
+            _log.Info($"pill ({(_primary ? "primary" : "secondary")} taskbar): fullscreen app {(fullscreen ? "detected, hiding" : "gone, showing")} (QUNS={FullscreenDetector.NotificationState()})");
         }
 
-        bool shouldShow = !fullscreen && _vm.PillDevices.Count > 0;
+        bool shouldShow = !fullscreen && _vm.PillDevices.Count > 0 && IsWindowVisible(_taskbar);
         if (shouldShow != _visible)
         {
             _visible = shouldShow;
@@ -162,32 +171,40 @@ public partial class PillWindow : Window
 
     private void Reposition()
     {
-        if (!_visible || _hwnd == IntPtr.Zero) return;
-        if (_taskbar == IntPtr.Zero || !GetWindowRect(_taskbar, out RECT bar))
-        {
-            _taskbar = FindWindowW("Shell_TrayWnd", null);
-            if (_taskbar == IntPtr.Zero || !GetWindowRect(_taskbar, out bar)) return;
-        }
+        if (!_visible || _hwnd == IntPtr.Zero || _closed) return;
+        if (!GetWindowRect(_taskbar, out RECT bar) || bar.Width <= 0) return;
         if (!GetWindowRect(_hwnd, out RECT me) || me.Width <= 0) return;
 
         double scale = GetDpiForWindow(_taskbar) / 96.0;
-        int anchorRight = bar.Right - (int)(300 * scale);
-        IntPtr tray = FindWindowExW(_taskbar, IntPtr.Zero, "TrayNotifyWnd", null);
-        if (tray != IntPtr.Zero && GetWindowRect(tray, out RECT trayRect) && trayRect.Width > 0 && trayRect.Left > bar.Left)
-            anchorRight = trayRect.Left;
+        int anchorRight;
+        if (_primary)
+        {
+            anchorRight = bar.Right - (int)(300 * scale);
+            IntPtr tray = FindWindowExW(_taskbar, IntPtr.Zero, "TrayNotifyWnd", null);
+            if (tray != IntPtr.Zero && GetWindowRect(tray, out RECT trayRect) && trayRect.Width > 0 && trayRect.Left > bar.Left)
+                anchorRight = trayRect.Left;
+        }
+        else
+        {
+            // Secondary taskbars have no notification-area window: stay clear of the clock at the right end.
+            anchorRight = bar.Right - (int)(SecondaryRightReserve * scale);
+        }
 
         int x = Math.Max(bar.Left, anchorRight - me.Width - (int)(6 * scale));
         int y = bar.Top + (bar.Height - me.Height) / 2;
         SetWindowPos(_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
-    private void OnLeftClick(object sender, MouseButtonEventArgs e) => Clicked?.Invoke();
+    private void OnLeftClick(object sender, MouseButtonEventArgs e) => Clicked?.Invoke(this);
 
     private void OnRightClick(object sender, MouseButtonEventArgs e) => MenuRequested?.Invoke();
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
         _watchdog.Stop();
+        _repositionDebounce.Stop();
+        _vm.PillLayoutChanged -= _layoutChanged;
         if (_foregroundHook != IntPtr.Zero) UnhookWinEvent(_foregroundHook);
         if (_taskbarHook != IntPtr.Zero) UnhookWinEvent(_taskbarHook);
         base.OnClosed(e);

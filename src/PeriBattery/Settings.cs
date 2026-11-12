@@ -30,6 +30,9 @@ public sealed class AppSettings
     public double PillOpacity { get; set; } = 1.0;
     public string AccentColor { get; set; } = "#FF6B6B";
     public bool ShowPercentText { get; set; } = true;
+
+    /// <summary>Show a pill on every monitor's taskbar, not only the primary one.</summary>
+    public bool ShowOnAllMonitors { get; set; } = true;
     public bool LowBatteryNotifications { get; set; } = true;
     public bool HideInFullscreen { get; set; } = true;
     public bool DebugLog { get; set; }
