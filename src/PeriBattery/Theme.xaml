@@ -29,10 +29,14 @@
             </Border>
             <Rectangle Width="2" Height="5" RadiusX="1" RadiusY="1" HorizontalAlignment="Right"
                        Fill="{StaticResource BatteryOutlineBrush}" />
-            <Path Data="M6.5,0 L1.5,5.6 H4.6 L3.6,10 L8.6,4.2 H5.5 Z" Fill="White" Stroke="#C0000000" StrokeThickness="0.6"
-                  Width="10" Height="10" Stretch="None" HorizontalAlignment="Left" Margin="7,0,0,0" VerticalAlignment="Center"
-                  Visibility="{Binding IsCharging, Converter={StaticResource BoolToVis}}" />
         </Grid>
+    </DataTemplate>
+
+    <!-- Charging bolt shown next to the battery glyph while the device charges. DataContext: DeviceVm. -->
+    <DataTemplate x:Key="ChargeBolt">
+        <Path Data="M7,0 L0.5,8 H4.6 L3.4,14 L10,5.6 H5.8 Z" Fill="#FFFFD23F" Width="10.5" Height="14" Stretch="None"
+              VerticalAlignment="Center" Margin="5,0,0,0"
+              Visibility="{Binding IsCharging, Converter={StaticResource BoolToVis}}" />
     </DataTemplate>
 
     <Style x:Key="DeviceIcon" TargetType="Path">

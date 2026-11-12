@@ -29,8 +29,12 @@
                     </StackPanel>
                     <CheckBox Grid.Column="2" Style="{StaticResource Switch}" IsChecked="{Binding ShowInPill}" VerticalAlignment="Center"
                               Margin="0,0,10,0" ToolTip="Mostrar en la píldora de la barra de tareas" />
-                    <ContentControl Grid.Column="3" Content="{Binding}" ContentTemplate="{StaticResource BatteryGlyph}"
-                                    Opacity="{Binding ContentOpacity}" Focusable="False" />
+                    <!-- Fixed width so rows line up whether or not the charging bolt is shown. -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Width="44">
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource BatteryGlyph}"
+                                        Opacity="{Binding ContentOpacity}" Focusable="False" />
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ChargeBolt}" Focusable="False" />
+                    </StackPanel>
                     <TextBlock Grid.Column="4" Text="{Binding PercentText}" Foreground="{Binding LevelBrush}" FontSize="16" FontWeight="Bold"
                                HorizontalAlignment="Right" VerticalAlignment="Center" />
                 </Grid>

@@ -27,6 +27,7 @@
                                 <Path Data="{Binding IconGeometry}" Style="{StaticResource DeviceIcon}" />
                             </Viewbox>
                             <ContentControl Content="{Binding}" ContentTemplate="{StaticResource BatteryGlyph}" Margin="7,0,0,0" Focusable="False" />
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ChargeBolt}" Focusable="False" />
                             <TextBlock Text="{Binding PercentText}" Foreground="{StaticResource TextBrush}" FontSize="12.5"
                                        FontWeight="SemiBold" Margin="6,0,0,0" VerticalAlignment="Center"
                                        Visibility="{Binding DataContext.ShowPercentText, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
